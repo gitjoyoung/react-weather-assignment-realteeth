@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { CurrentWeatherCard } from '@/features/current-weather/ui/CurrentWeatherCard';
 import {
   Carousel,
@@ -29,23 +29,31 @@ export function WeatherBoardWidget() {
 
   const [api, setApi] = useState<CarouselApi>();
 
-  let displayList = [...favoriteLocations];
-  if (searchedLocation && !favoriteLocations.some(f => f.id === searchedLocation.id)) {
-    displayList.push(searchedLocation);
-  }
-
-  // 만약 리스트가 비어있다면 기본 위치(서울)를 보여줌
-  if (displayList.length === 0) {
-    displayList = [DEFAULT_LOCATION];
-  }
+  const displayList = useMemo(() => {
+    const list = [...favoriteLocations];
+    if (searchedLocation && !favoriteLocations.some(f => f.id === searchedLocation.id)) {
+      list.push(searchedLocation);
+    }
+    // 만약 리스트가 비어있다면 기본 위치(서울)를 보여줌
+    if (list.length === 0) {
+      return [DEFAULT_LOCATION];
+    }
+    return list;
+  }, [favoriteLocations, searchedLocation]);
 
   useEffect(() => {
     if (!api || !searchedLocation) return;
-    const index = displayList.findIndex(loc => loc.id === searchedLocation.id);
-    if (index !== -1) {
-      api.scrollTo(index);
-    }
-  }, [api, searchedLocation?.id]);
+    
+    // Slight delay to ensure the DOM is updated with the new slide before scrolling
+    const timer = setTimeout(() => {
+      const index = displayList.findIndex(loc => loc.id === searchedLocation.id);
+      if (index !== -1) {
+        api.scrollTo(index);
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [api, searchedLocation?.id, displayList]);
 
 
 

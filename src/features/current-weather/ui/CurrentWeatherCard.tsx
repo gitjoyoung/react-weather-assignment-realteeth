@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { LocationItem } from '@/entities/location/hooks/locationService';
 import { Card, CardContent } from '@/shared/ui/card';
-import { Wind, Droplets, Star, Edit2 } from 'lucide-react';
+import { Wind, Droplets, Star, Edit2, Loader2 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { useWeatherContext } from '@/pages/main/lib/WeatherContext';
 import { useWeather } from '@/entities/weather/model/useWeatherQuery';
@@ -9,6 +9,7 @@ import { getCurrentDateTime } from '../lib/dateUtils';
 import { extractWeatherData } from '../lib/weatherDataUtils';
 import { getPtyStyle, getSkyStyle } from '../lib/weatherStyles';
 import { WeatherErrorCard } from './WeatherErrorCard';
+import { HourlyForecast } from './HourlyForecast';
 
 interface CurrentWeatherCardProps {
   location?: LocationItem;
@@ -43,10 +44,21 @@ export function CurrentWeatherCard({ location }: CurrentWeatherCardProps) {
 
   if (isLoading || !data) {
     return (
-      <Card className="w-full max-w-[380px] h-[600px] rounded-[3.5rem] border-none bg-white/5 backdrop-blur-md border-white/10 animate-pulse flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-full border-4 border-white/20 border-t-white animate-spin" />
-          <span className="text-white/40 text-[10px] font-black uppercase tracking-widest">{location?.displayName}</span>
+      <Card className="w-full max-w-[380px] min-h-[700px] h-auto rounded-[3.5rem] border-none bg-gradient-to-br from-blue-950 via-slate-900 to-black border border-white/5 flex items-center justify-center shadow-2xl">
+        <div className="flex flex-col items-center gap-6">
+          {/* Bouncing Dots Animation */}
+          <div className="flex gap-2">
+            <div className="w-3 h-3 bg-white/80 rounded-full animate-bounce [animation-delay:-0.3s]" />
+            <div className="w-3 h-3 bg-white/80 rounded-full animate-bounce [animation-delay:-0.15s]" />
+            <div className="w-3 h-3 bg-white/80 rounded-full animate-bounce" />
+          </div>
+          
+          <div className="flex flex-col items-center gap-1">
+             <span className="text-white/60 text-xs font-bold tracking-widest uppercase">Loading</span>
+             {location?.displayName && (
+               <span className="text-white/40 text-[10px] uppercase tracking-wider">{location.displayName}</span>
+             )}
+          </div>
         </div>
       </Card>
     );
@@ -87,7 +99,7 @@ export function CurrentWeatherCard({ location }: CurrentWeatherCardProps) {
 
   return (
     <Card className={cn(
-      "w-full max-w-[380px] h-[600px] rounded-[3.5rem] border-none text-white relative overflow-hidden transition-all duration-700 group",
+      "w-full max-w-[380px] min-h-[600px] h-auto rounded-[3.5rem] border-none text-white relative overflow-hidden transition-all duration-700 group",
       "bg-gradient-to-b shadow-2xl",
       bg,
       shadow
@@ -175,6 +187,9 @@ export function CurrentWeatherCard({ location }: CurrentWeatherCardProps) {
             </div>
           </div>
         </div>
+
+          
+        <HourlyForecast location={location} />
 
         <div className="flex flex-col items-center gap-1 mt-4">
           <div className="px-5 py-2 bg-black/20 backdrop-blur-xl border border-white/10 rounded-full flex items-center gap-3">
