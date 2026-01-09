@@ -74,7 +74,6 @@ export interface HourlyForecastItem {
 export const extractHourlyForecast = (data: KmaWeatherItem[]): HourlyForecastItem[] => {
   const result: HourlyForecastItem[] = [];
   const now = new Date();
-  const currentHour = now.getHours();
   const yyyy = now.getFullYear();
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const dd = String(now.getDate()).padStart(2, '0');

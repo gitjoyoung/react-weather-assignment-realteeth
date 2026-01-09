@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { LocationItem } from '@/entities/location/hooks/locationService';
 import { Card, CardContent } from '@/shared/ui/card';
-import { Wind, Droplets, Star, Edit2, Loader2 } from 'lucide-react';
+import { Wind, Droplets, Star, Edit2 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { useWeatherContext } from '@/pages/main/lib/WeatherContext';
 import { useWeather } from '@/entities/weather/model/useWeatherQuery';
