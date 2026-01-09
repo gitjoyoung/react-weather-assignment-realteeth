@@ -43,12 +43,13 @@ export const getVilageBaseDateTime = () => {
     adjustHour = hours - 1;
   }
 
-  if (adjustHour < 2) {
+  // Use yesterday 23:00 for early morning (before 05:00) to be safe
+  // The 02:00 forecast is available after 02:10, but sometimes unstable or delayed.
+  // 23:00 forecast covers today/tomorrow fully anyway.
+  if (adjustHour < 5) {
     const yesterday = new Date(now.setDate(now.getDate() - 1));
     baseDate = formatDate(yesterday);
     baseTime = '2300';
-  } else if (adjustHour < 5) {
-    baseTime = '0200';
   } else if (adjustHour < 8) {
     baseTime = '0500';
   } else if (adjustHour < 11) {

@@ -30,7 +30,7 @@ export const fetchWeather = async (lat: number, lon: number) => {
       params: {
         serviceKey: WEATHER_API_CONFIG.SERVICE_KEY,
         ...WEATHER_API_CONFIG.DEFAULT_PARAMS,
-        numOfRows: 500, // Fetch enough to find TMN/TMX
+        numOfRows: 1000, // Increase to ensure we cover today's data fully (previous day overlap can be large)
         base_date: vilageBaseDate,
         base_time: vilageBaseTime,
         nx,
