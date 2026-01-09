@@ -1,5 +1,5 @@
-import koreaDistricts from '../data/korea_districts.json';
-import { disassemble } from 'es-hangul';
+// Imports moved to dynamic import inside searchLocations
+
 
 export interface LocationItem {
   id: string;
@@ -34,13 +34,46 @@ function parseLocation(raw: string): LocationItem {
   };
 }
 
-export function searchLocations(query: string): LocationItem[] {
+// Helper to inflate the compressed tree into a flat list
+function inflateDistricts(node: any, prefix = ''): string[] {
+  let result: string[] = [];
+
+  if (Array.isArray(node)) {
+    // Leaf nodes (list of towns)
+    return node.map(leaf => prefix ? `${prefix}-${leaf}` : leaf);
+  }
+
+  if (typeof node === 'object' && node !== null) {
+    // If it's the root or an ongoing path, we might also want to include the current prefix as a valid search result
+    // (e.g. "Seoul-Gangnam" is valid even if "Seoul-Gangnam-Samsung" exists)
+    // The original data included these intermediate paths.
+    if (prefix) result.push(prefix);
+
+    for (const key in node) {
+      const currentPath = prefix ? `${prefix}-${key}` : key;
+      result = result.concat(inflateDistricts(node[key], currentPath));
+    }
+  }
+
+  return result;
+}
+
+export async function searchLocations(query: string): Promise<LocationItem[]> {
   if (!query.trim()) return [];
 
   const lowerQuery = query.toLowerCase();
+  const { disassemble } = await import('es-hangul');
   const disassembledQuery = disassemble(lowerQuery);
 
-  const results = (koreaDistricts as string[])
+  const module = await import('../data/korea_districts_tree.json');
+  // @ts-ignore
+  const districtsTree = module.default;
+
+  // Flattening every time might be expensive if data is huge, but 200KB tree -> 1MB list is fast enough (few ms).
+  // Optimization: Memoize this if needed, but for now simple is better.
+  const koreaDistricts = inflateDistricts(districtsTree);
+
+  const results = koreaDistricts
     .filter((raw) => {
       const cleanRaw = raw.replace(/-/g, ' ');
       const disassembledRaw = disassemble(cleanRaw);

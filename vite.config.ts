@@ -11,4 +11,18 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'framer-motion': ['framer-motion'],
+          'ui-libs': ['lucide-react', 'embla-carousel-react', 'cmdk'],
+          'radix-ui': ['@radix-ui/react-dialog', '@radix-ui/react-popover', '@radix-ui/react-slot'],
+          'utils': ['axios', 'es-hangul', 'use-debounce', 'clsx', 'tailwind-merge', 'class-variance-authority'],
+          'react-query': ['@tanstack/react-query'],
+        },
+      },
+    },
+  },
 })

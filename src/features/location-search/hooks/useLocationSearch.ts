@@ -13,17 +13,25 @@ export function useLocationSearch(query: string) {
       return;
     }
 
-    const timer = setTimeout(() => {
-      const results = searchLocations(trimmed);
-      setSearchResults(results);
-    }, 200); 
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const results = await searchLocations(trimmed);
+        setSearchResults(results);
+      } catch (error) {
+        console.error("Search failed", error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 200);
 
     return () => clearTimeout(timer);
   }, [query]);
 
-  return { 
-    searchResults, 
+  return {
+    searchResults,
     isSearching,
-    setIsSearching 
+    setIsSearching
   };
 }

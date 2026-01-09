@@ -1,6 +1,5 @@
 import { searchAddress, coordToRegion, type KakaoAddressDocument } from '@/entities/location/api/kakaoApi';
 import type { LocationItem } from './locationService';
-import { QueryClient, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 
 /**
  * Kakao 주소 데이터를 LocationItem 형식으로 변환
