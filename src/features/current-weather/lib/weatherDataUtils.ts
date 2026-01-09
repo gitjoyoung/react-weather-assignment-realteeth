@@ -6,6 +6,8 @@ export interface WeatherData {
   pty: string | undefined;
   humidity: string | undefined;
   windSpeed: string | undefined;
+  tmn: string | undefined; // Daily Min Temp
+  tmx: string | undefined; // Daily Max Temp
 }
 
 export const extractWeatherData = (data: KmaWeatherItem[]): WeatherData => {
@@ -15,5 +17,7 @@ export const extractWeatherData = (data: KmaWeatherItem[]): WeatherData => {
     pty: data.find(item => item.category === 'PTY')?.fcstValue,
     humidity: data.find(item => item.category === 'REH')?.fcstValue,
     windSpeed: data.find(item => item.category === 'WSD')?.fcstValue,
+    tmn: data.find(item => item.category === 'TMN')?.fcstValue,
+    tmx: data.find(item => item.category === 'TMX')?.fcstValue,
   };
 };

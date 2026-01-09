@@ -24,6 +24,50 @@ export const getBaseDateTime = () => {
   return { baseDate, baseTime };
 };
 
+export const getVilageBaseDateTime = () => {
+  const now = new Date();
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+
+  // Base times: 02, 05, 08, 11, 14, 17, 20, 23
+  // API is available ~10 mins after base time. Let's be safe with 15 mins.
+  // If current time is 02:10, we can't use 02:00 yet. We must use yesterday 23:00.
+
+  let baseDate = formatDate(now);
+  let baseTime = '0200';
+
+  // Calculate adjusted current hour for 3-hour intervals
+  // If minutes < 15, treat as previous hour
+  let adjustHour = hours;
+  if (minutes < 15) {
+    adjustHour = hours - 1;
+  }
+
+  if (adjustHour < 2) {
+    const yesterday = new Date(now.setDate(now.getDate() - 1));
+    baseDate = formatDate(yesterday);
+    baseTime = '2300';
+  } else if (adjustHour < 5) {
+    baseTime = '0200';
+  } else if (adjustHour < 8) {
+    baseTime = '0500';
+  } else if (adjustHour < 11) {
+    baseTime = '0800';
+  } else if (adjustHour < 14) {
+    baseTime = '1100';
+  } else if (adjustHour < 17) {
+    baseTime = '1400';
+  } else if (adjustHour < 20) {
+    baseTime = '1700';
+  } else if (adjustHour < 23) {
+    baseTime = '2000';
+  } else {
+    baseTime = '2300';
+  }
+
+  return { baseDate, baseTime };
+};
+
 const formatDate = (date: Date) => {
   const y = date.getFullYear();
   const m = padZero(date.getMonth() + 1);

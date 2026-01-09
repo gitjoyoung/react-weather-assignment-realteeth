@@ -144,6 +144,19 @@ export function CurrentWeatherCard({ location }: CurrentWeatherCardProps) {
             </span>
             <span className="text-5xl font-black mt-4 ml-1">°</span>
           </div>
+          
+          <div className="flex items-center gap-3 mt-2 text-sm font-bold opacity-80">
+            <span className="flex items-center gap-1">
+              <span className="text-blue-300">▼</span>
+              {weatherData.tmn ? Math.round(Number(weatherData.tmn)) : '--'}°
+            </span>
+            <span className="w-[1px] h-3 bg-white/30" />
+            <span className="flex items-center gap-1">
+              <span className="text-red-300">▲</span>
+              {weatherData.tmx ? Math.round(Number(weatherData.tmx)) : '--'}°
+            </span>
+          </div>
+
           <div className="flex items-center gap-6 mt-4">
             <div className="flex flex-col items-center">
               <span className="text-sm font-black uppercase tracking-widest opacity-60">풍속</span>
