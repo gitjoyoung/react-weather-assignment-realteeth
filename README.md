@@ -72,9 +72,14 @@ npm run build
 
 ## 기술 스택
 
-- React 19
-- TypeScript
-- Redux Toolkit
-- TanStack Query
-- Tailwind CSS
-- Vite
+- **Core**: React 19, TypeScript, Vite
+- **State Management**: TanStack Query (React Query)
+- **Styling**: Tailwind CSS v4, Class Variance Authority (CVA)
+- **UI/Animation**: Radix UI, Framer Motion, Lucide React
+- **Utils**: es-hangul (한글 초성 검색), use-debounce
+
+## 최적화 및 성능 (Performance)
+
+- **데이터 압축 (Data Compression)**: 행정구역 데이터를 트리(Tree) 구조로 변환하여 파일 크기 72% 감소 (915KB → 258KB)
+- **코드 스플리팅 (Code Splitting)**: 라이브러리별 청크 분리 및 대용량 JSON 데이터의 지연 로딩(Dynamic Import) 적용
+- **검색 최적화**: Trie 구조 기반의 검색 로직을 통해 런타임 메모리 사용량 최적화
