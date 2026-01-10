@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/shared/ui/card";
 import { Plus, Minus, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
@@ -23,6 +23,7 @@ export function LoadingGameCard({
   const [sign, setSign] = useState<1 | -1>(-1);
   const [status, setStatus] = useState<GameStatus>("idle");
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleGuess = (delta: number) => {
     if (status !== "idle") return;
@@ -30,26 +31,39 @@ export function LoadingGameCard({
   };
 
   const checkAnswer = () => {
-    if (!isDataReady || actualTemp === undefined) return;
-
-    const signedGuess = guess * sign;
-    const target = Math.round(actualTemp);
+    if (status !== "idle") return;
     setStatus("checking");
-
-    setTimeout(() => {
-      if (signedGuess === target) {
-        setStatus("success");
-      } else {
-        setStatus("fail");
-      }
-
-      // 결과 보여준 후 전환
-      setTimeout(() => {
-        setIsTransitioning(true);
-        setTimeout(onFinish, 500);
-      }, 1800);
-    }, 800);
+    setIsSubmitting(true);
   };
+
+  // 데이터 준비 완료 시 실제 결과 처리
+  useEffect(() => {
+    if (
+      isSubmitting &&
+      isDataReady &&
+      actualTemp !== undefined &&
+      status === "checking"
+    ) {
+      const signedGuess = guess * sign;
+      const target = Math.round(actualTemp);
+
+      setTimeout(() => {
+        if (signedGuess === target) {
+          setStatus("success");
+        } else {
+          setStatus("fail");
+        }
+
+        // 결과 보여준 후 전환
+        setTimeout(() => {
+          setIsTransitioning(true);
+          setTimeout(onFinish, 500);
+        }, 1800);
+      }, 800);
+
+      setIsSubmitting(false); // 처리 완료
+    }
+  }, [isSubmitting, isDataReady, actualTemp, guess, sign, status, onFinish]);
 
   return (
     <Card
@@ -162,37 +176,19 @@ export function LoadingGameCard({
               </div>
 
               {/* Footer/Action */}
-              <div className="w-full px-4">
-                <button
-                  onClick={checkAnswer}
-                  disabled={!isDataReady || status !== "idle"}
-                  className={cn(
-                    "w-full py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-2",
-                    !isDataReady
-                      ? "bg-white/5 text-white/20 cursor-wait"
-                      : "bg-white text-black hover:scale-[1.02] active:scale-95 shadow-xl shadow-white/5",
-                    status === "checking" && "opacity-0 pointer-events-none"
-                  )}
-                >
-                  {status === "checking" ? (
-                    <div className="flex gap-1.5">
-                      <div className="w-1.5 h-1.5 bg-white/20 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                      <div className="w-1.5 h-1.5 bg-white/20 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                      <div className="w-1.5 h-1.5 bg-white/20 rounded-full animate-bounce" />
-                    </div>
-                  ) : isDataReady ? (
-                    <>
-                      정답 확인
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  ) : (
-                    <div className="flex gap-1.5">
-                      <div className="w-1.5 h-1.5 bg-white/20 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                      <div className="w-1.5 h-1.5 bg-white/20 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                      <div className="w-1.5 h-1.5 bg-white/20 rounded-full animate-bounce" />
-                    </div>
-                  )}
-                </button>
+              <div className="w-full px-4 h-16 flex items-center justify-center">
+                {status === "idle" && (
+                  <button
+                    onClick={checkAnswer}
+                    className={cn(
+                      "w-full h-full rounded-2xl font-bold transition-all flex items-center justify-center gap-2",
+                      "bg-white text-black hover:scale-[1.02] active:scale-95 shadow-xl shadow-white/5"
+                    )}
+                  >
+                    제출하기
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </motion.div>
           ) : (
