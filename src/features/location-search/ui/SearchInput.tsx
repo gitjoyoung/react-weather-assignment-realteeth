@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Search, X, Loader2, Navigation } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
@@ -12,7 +13,7 @@ interface SearchInputProps {
   onDetect: (e: React.MouseEvent) => void;
 }
 
-export function SearchInput({
+export const SearchInput = memo(function SearchInput({
   value,
   onChange,
   onClear,
@@ -66,4 +67,4 @@ export function SearchInput({
       </div>
     </div>
   );
-}
+});

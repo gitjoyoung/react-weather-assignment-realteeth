@@ -2,7 +2,7 @@ import { cn } from '@/shared/lib/utils';
 import { getSeasonTitle } from '../lib/seasonUtils';
 
 interface SeasonalTitleProps {
-  className?: string; // Allow passing external styles (like transparency/scaling from MainHeader)
+  className?: string;
 }
 
 export function SeasonalTitle({ className }: SeasonalTitleProps) {

@@ -1,92 +1,135 @@
-// Imports moved to dynamic import inside searchLocations
-
+import { disassembleHangul } from '@/shared/lib/hangul/disassemble';
 
 export interface LocationItem {
   id: string;
   province: string;
   city?: string;
   town?: string;
-  displayName: string;  // Original location name (never changes)
-  customTitle?: string;  // User-editable custom title (optional)
+  displayName: string;
+  customTitle?: string;
   fullAddress: string;
   lat: number;
   lon: number;
 }
 
-function parseLocation(raw: string): LocationItem {
-  const parts = raw.split('-');
-  const province = parts[0];
-  const city = parts.length > 1 ? parts[1] : undefined;
-  const town = parts.length > 2 ? parts[2] : undefined;
+/**
+ * 원본 문자열을 LocationItem으로 파싱
+ * 예: "서울특별시-강남구-삼성동" → { province: "서울특별시", city: "강남구", town: "삼성동" }
+ */
+function parseLocationString(rawLocationString: string): LocationItem {
+  const addressParts = rawLocationString.split('-');
+  const province = addressParts[0];
+  const city = addressParts.length > 1 ? addressParts[1] : undefined;
+  const town = addressParts.length > 2 ? addressParts[2] : undefined;
 
   let displayName = province;
-  if (town) displayName = town;
-  else if (city) displayName = city;
+  if (town) {
+    displayName = town;
+  } else if (city) {
+    displayName = city;
+  }
+
   return {
-    id: raw,
+    id: rawLocationString,
     province,
     city,
     town,
     displayName,
-    fullAddress: parts.join(' '),
+    fullAddress: addressParts.join(' '),
     lat: 37.5665,
     lon: 126.9780,
   };
 }
 
-// Helper to inflate the compressed tree into a flat list
-function inflateDistricts(node: any, prefix = ''): string[] {
-  let result: string[] = [];
+/**
+ * 압축된 트리 구조를 평탄화된 문자열 배열로 변환
+ * 예: { "서울": { "강남구": ["삼성동", "역삼동"] } } → ["서울", "서울-강남구", "서울-강남구-삼성동", ...]
+ */
+function flattenDistrictTree(treeNode: any, currentPath = ''): string[] {
+  let flattenedList: string[] = [];
 
-  if (Array.isArray(node)) {
-    // Leaf nodes (list of towns)
-    return node.map(leaf => prefix ? `${prefix}-${leaf}` : leaf);
+  if (Array.isArray(treeNode)) {
+    return treeNode.map(leafNode =>
+      currentPath ? `${currentPath}-${leafNode}` : leafNode
+    );
   }
 
-  if (typeof node === 'object' && node !== null) {
-    // If it's the root or an ongoing path, we might also want to include the current prefix as a valid search result
-    // (e.g. "Seoul-Gangnam" is valid even if "Seoul-Gangnam-Samsung" exists)
-    // The original data included these intermediate paths.
-    if (prefix) result.push(prefix);
+  if (typeof treeNode === 'object' && treeNode !== null) {
+    if (currentPath) {
+      flattenedList.push(currentPath);
+    }
 
-    for (const key in node) {
-      const currentPath = prefix ? `${prefix}-${key}` : key;
-      result = result.concat(inflateDistricts(node[key], currentPath));
+    for (const childKey in treeNode) {
+      const childPath = currentPath ? `${currentPath}-${childKey}` : childKey;
+      flattenedList = flattenedList.concat(
+        flattenDistrictTree(treeNode[childKey], childPath)
+      );
     }
   }
 
-  return result;
+  return flattenedList;
 }
 
-export async function searchLocations(query: string): Promise<LocationItem[]> {
-  if (!query.trim()) return [];
+/**
+ * 검색 결과 정렬 비교 함수
+ * 1. displayName이 검색어와 정확히 일치하는 항목 최우선
+ * 2. displayName이 검색어를 포함하는 항목 우선
+ * 3. 주소 길이가 짧은 항목 우선 (더 상위 지역)
+ */
+function compareLocationsByRelevance(
+  locationA: LocationItem,
+  locationB: LocationItem,
+  normalizedQuery: string,
+  disassembledQuery: string
+): number {
+  const aDisplayNameLower = locationA.displayName.toLowerCase();
+  const bDisplayNameLower = locationB.displayName.toLowerCase();
+  const aDisassembled = disassembleHangul(aDisplayNameLower);
+  const bDisassembled = disassembleHangul(bDisplayNameLower);
 
-  const lowerQuery = query.toLowerCase();
-  const { disassemble } = await import('es-hangul');
-  const disassembledQuery = disassemble(lowerQuery);
+  // 1순위: 정확히 일치
+  const isAExactMatch = aDisplayNameLower === normalizedQuery || aDisassembled === disassembledQuery;
+  const isBExactMatch = bDisplayNameLower === normalizedQuery || bDisassembled === disassembledQuery;
 
-  const module = await import('../data/korea_districts_tree.json');
-  // @ts-ignore
-  const districtsTree = module.default;
+  if (isAExactMatch && !isBExactMatch) return -1;
+  if (!isAExactMatch && isBExactMatch) return 1;
 
-  // Flattening every time might be expensive if data is huge, but 200KB tree -> 1MB list is fast enough (few ms).
-  // Optimization: Memoize this if needed, but for now simple is better.
-  const koreaDistricts = inflateDistricts(districtsTree);
+  // 2순위: displayName에 포함
+  const isADisplayNameMatch = aDisassembled.includes(disassembledQuery);
+  const isBDisplayNameMatch = bDisassembled.includes(disassembledQuery);
 
-  const results = koreaDistricts
-    .filter((raw) => {
-      const cleanRaw = raw.replace(/-/g, ' ');
-      const disassembledRaw = disassemble(cleanRaw);
-      return disassembledRaw.includes(disassembledQuery);
+  if (isADisplayNameMatch && !isBDisplayNameMatch) return -1;
+  if (!isADisplayNameMatch && isBDisplayNameMatch) return 1;
+
+  // 3순위: 주소 길이 (짧을수록 상위 지역)
+  return locationA.fullAddress.length - locationB.fullAddress.length;
+}
+
+/**
+ * 검색어로 지역 목록 검색
+ * 한글 자모 분리를 통한 초성 검색 지원
+ */
+export async function searchLocations(searchQuery: string): Promise<LocationItem[]> {
+  if (!searchQuery.trim()) return [];
+
+  const normalizedQuery = searchQuery.toLowerCase();
+  const disassembledQuery = disassembleHangul(normalizedQuery);
+
+  const districtTreeModule = await import('../data/korea_districts_tree.json');
+  const districtTree = districtTreeModule.default;
+  const allDistrictStrings = flattenDistrictTree(districtTree);
+
+  const matchedLocations = allDistrictStrings
+    .filter((districtString) => {
+      const cleanedString = districtString.replace(/-/g, ' ');
+      const disassembledString = disassembleHangul(cleanedString);
+      return disassembledString.includes(disassembledQuery);
     })
-    .map(parseLocation);
+    .map(parseLocationString);
 
-  return results.sort((a, b) => {
-    const aMatch = disassemble(a.displayName.toLowerCase()).includes(disassembledQuery);
-    const bMatch = disassemble(b.displayName.toLowerCase()).includes(disassembledQuery);
-    if (aMatch && !bMatch) return -1;
-    if (!aMatch && bMatch) return 1;
+  const sortedResults = matchedLocations.sort((a, b) =>
+    compareLocationsByRelevance(a, b, normalizedQuery, disassembledQuery)
+  );
 
-    return a.fullAddress.length - b.fullAddress.length;
-  }).slice(0, 50);
+  return sortedResults.slice(0, 50);
 }

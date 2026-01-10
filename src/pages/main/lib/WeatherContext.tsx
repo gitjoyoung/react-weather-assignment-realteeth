@@ -10,9 +10,9 @@ const WeatherContext = createContext<WeatherContextType | undefined>(undefined);
 
 export function WeatherProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(weatherReducer, {
+    carouselArray: [],
     favoriteLocations: [],
-    isSearchOpen: false,
-    searchedLocation: null,
+    searchResult: null,
   });
 
   return (

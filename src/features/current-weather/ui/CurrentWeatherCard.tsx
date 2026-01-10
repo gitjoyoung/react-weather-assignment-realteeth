@@ -1,101 +1,102 @@
-import { useState } from 'react';
+import { useState, useCallback, memo } from 'react';
 import type { LocationItem } from '@/entities/location/hooks/locationService';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Wind, Droplets, Star, Edit2 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
-import { useWeatherContext } from '@/pages/main/lib/WeatherContext';
-import { useWeather } from '@/entities/weather/model/useWeatherQuery';
-import { getCurrentDateTime } from '../lib/dateUtils';
-import { extractWeatherData } from '../lib/weatherDataUtils';
+import { useWeatherCard } from '../hooks/useWeatherCard';
+import { useWeather } from '../hooks/useWeatherQuery';
+import { extractWeatherDataFromTimeline } from '@/entities/weather/lib/weatherDataUtils';
 import { getPtyStyle, getSkyStyle } from '../lib/weatherStyles';
 import { WeatherErrorCard } from './WeatherErrorCard';
 import { HourlyForecast } from './HourlyForecast';
+import { getCurrentDateTime } from '../lib/dateUtils';
+import { getBaseDateTime } from '@/entities/weather/lib/weatherUtils';
+import { LoadingGameCard } from './LoadingGameCard';
 
 interface CurrentWeatherCardProps {
   location?: LocationItem;
 }
 
-export function CurrentWeatherCard({ location }: CurrentWeatherCardProps) {
-  const { state: { favoriteLocations }, dispatch } = useWeatherContext();
+export const CurrentWeatherCard = memo(function CurrentWeatherCard({ location }: CurrentWeatherCardProps) {
+  // 전역 상태 관리 (useWeatherCard 훅 사용)
+  const { isFavorite, canAddFavorite, toggleFavorite, updateCustomName } = useWeatherCard(location!);
+  
+  // 로컬 상태
   const [tempName, setTempName] = useState(location?.customTitle || location?.displayName || '');
+  const [isGameFinished, setIsGameFinished] = useState(false);
 
+  // 날씨 데이터
   const { data, isLoading, isError, refetch } = useWeather(location?.lat || 0, location?.lon || 0);
+  
+  // 공용 유틸로 날짜 및 기준시각 조회
+  const { dateText } = getCurrentDateTime();
+  const { baseTime } = getBaseDateTime();
+  const inquiryTime = `${baseTime.substring(0, 2)}:${baseTime.substring(2, 4)}`;
 
-  const isFavorite = location ? favoriteLocations.some(f => f.id === location.id) : false;
+  // 커스텀 네임 저장 핸들러
+  const saveName = useCallback(() => {
+    if (!location) return;
+    const trimmed = tempName.trim();
+    
+    // 즐겨찾기된 항목만 커스텀 네임 변경 가능
+    if (isFavorite && trimmed) {
+      updateCustomName(trimmed);
+    }
+  }, [location, tempName, isFavorite, updateCustomName]);
+  
+  // Enter 키 핸들러
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      saveName();
+      e.currentTarget.blur();
+    }
+  }, [saveName]);
 
-  const toggleFavorite = () => {
+  // 즐겨찾기 토글 핸들러 (최대 개수 확인 포함)
+  const handleToggleFavorite = useCallback(() => {
     if (!location) return;
     
-    if (isFavorite) {
-      dispatch({ type: 'REMOVE_FAVORITE', payload: location.id });
-    } else {
-      if (favoriteLocations.length >= 6) {
-        const confirmReplace = window.confirm(
-          '즐겨찾기가 6개로 가득 찼습니다. 가장 예전에 추가한 지역을 삭제하고 이 지역을 추가하시겠습니까?'
-        );
-        if (confirmReplace) {
-          dispatch({ type: 'REPLACE_OLDEST_FAVORITE', payload: location });
-        }
-      } else {
-        dispatch({ type: 'ADD_FAVORITE', payload: location });
-      }
+    if (!isFavorite && !canAddFavorite) {
+      const confirmReplace = window.confirm(
+        '즐겨찾기가 6개로 가득 찼습니다. 가장 예전에 추가한 지역을 삭제하고 이 지역을 추가하시겠습니까?'
+      );
+      if (!confirmReplace) return;
     }
-  };
+    
+    toggleFavorite();
+  }, [location, isFavorite, canAddFavorite, toggleFavorite]);
 
-  if (isLoading || !data) {
+
+  // 게임 완료 전이거나 로딩 중일 때 표시
+  if (!isGameFinished) {
+    // 로딩 중이 아닐 때만 데이터 추출 시도
+    const weatherData = data ? extractWeatherDataFromTimeline(data) : null;
+    
     return (
-      <Card className="w-full max-w-[380px] min-h-[700px] h-auto rounded-[3.5rem] border-none bg-gradient-to-br from-blue-950 via-slate-900 to-black border border-white/5 flex items-center justify-center shadow-2xl">
-        <div className="flex flex-col items-center gap-6">
-          {/* Bouncing Dots Animation */}
-          <div className="flex gap-2">
-            <div className="w-3 h-3 bg-white/80 rounded-full animate-bounce [animation-delay:-0.3s]" />
-            <div className="w-3 h-3 bg-white/80 rounded-full animate-bounce [animation-delay:-0.15s]" />
-            <div className="w-3 h-3 bg-white/80 rounded-full animate-bounce" />
-          </div>
-          
-          <div className="flex flex-col items-center gap-1">
-             <span className="text-white/60 text-xs font-bold tracking-widest uppercase">Loading</span>
-             {location?.displayName && (
-               <span className="text-white/40 text-[10px] uppercase tracking-wider">{location.displayName}</span>
-             )}
-          </div>
-        </div>
-      </Card>
+      <LoadingGameCard 
+        isDataReady={!!data && !isLoading} 
+        actualTemp={weatherData?.temp ? Number(weatherData.temp) : undefined}
+        locationName={location?.displayName}
+        onFinish={() => setIsGameFinished(true)}
+      />
     );
   }
 
+  // 에러 상태
   if (isError) {
     return (
       <WeatherErrorCard 
         location={location}
         onRetry={() => refetch()}
-        onDelete={() => location && dispatch({ type: 'REMOVE_FAVORITE', payload: location.id })}
+        onDelete={toggleFavorite}
         isFavorite={isFavorite}
       />
     );
   }
 
-  const weatherData = extractWeatherData(data);
+  const weatherData = extractWeatherDataFromTimeline(data || []);
   const weatherStyle = getPtyStyle(weatherData.pty) ?? getSkyStyle(weatherData.sky);
   const { bg, label, icon, shadow } = weatherStyle;
-  const { timeText, dateText } = getCurrentDateTime();
-
-  const saveName = () => {
-    if (!location) return;
-    const updated = { ...location, customTitle: tempName.trim() || undefined };
-    if (isFavorite) {
-      dispatch({ type: 'UPDATE_FAVORITE', payload: updated });
-    } else {
-      dispatch({ type: 'SET_SEARCHED_LOCATION', payload: updated });
-    }
-  };
-  
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      saveName();
-      e.currentTarget.blur();
-    }
-  };
 
   return (
     <Card className={cn(
@@ -107,31 +108,37 @@ export function CurrentWeatherCard({ location }: CurrentWeatherCardProps) {
       <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.4)_0%,transparent_50%)] animate-pulse-slow" />
       <div className="absolute top-[20%] right-[-20%] w-[60%] h-[60%] bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.2)_0%,transparent_50%)] animate-bounce-subtle" />
       
-      <CardContent className="h-full flex flex-col items-center justify-between relative z-10">
-        <div className="w-full flex items-center justify-between">
+      <CardContent className="h-full flex flex-col items-center justify-between relative z-10 p-2">
+        <div className="w-full flex items-center justify-between px-4">
           <div className="flex items-center gap-2 px-2 py-1.5 rounded-full transition-all duration-500 border bg-white/5 border-white/10 hover:bg-white/15 group/title-box">
             <input
               value={tempName}
               onChange={(e) => setTempName(e.target.value)}
               onBlur={saveName}
               onKeyDown={handleKeyDown}
+              disabled={!isFavorite}
               className={cn(
                 "bg-transparent border-none outline-none text-base font-bold text-white transition-all duration-300 px-1 py-0.5 w-full truncate",
-                "placeholder:text-white/30 cursor-pointer focus:cursor-text text-left",
+                "placeholder:text-white/30 text-left",
+                isFavorite ? "cursor-pointer focus:cursor-text" : "cursor-not-allowed opacity-60"
               )}
-              placeholder="커스텀 타이틀"
+              placeholder={isFavorite ? "커스텀 타이틀" : "즐겨찾기 후 편집 가능"}
+              title={isFavorite ? "클릭하여 편집" : "즐겨찾기된 항목만 편집 가능합니다"}
             />
-            <Edit2 className="w-2.5 h-2.5 opacity-80 group-hover/title-box:opacity-100 transition-opacity shrink-0 ml-1" />
+            {isFavorite && (
+              <Edit2 className="w-2.5 h-2.5 opacity-80 group-hover/title-box:opacity-100 transition-opacity shrink-0 ml-1" />
+            )}
           </div>
 
           <button
-            onClick={toggleFavorite}
+            onClick={handleToggleFavorite}
             className={cn(
               "p-1.5 transition-all duration-300 hover:scale-125 shrink-0",
               isFavorite 
                 ? "text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]" 
                 : "text-white/30 hover:text-white/90"
             )}
+            title={isFavorite ? "즐겨찾기 제거" : canAddFavorite ? "즐겨찾기 추가" : "즐겨찾기 가득참 (교체)"}
           >
             <Star className={cn("w-5 h-5", isFavorite && "fill-current")} />
           </button>
@@ -151,10 +158,10 @@ export function CurrentWeatherCard({ location }: CurrentWeatherCardProps) {
 
         <div className="flex flex-col items-center gap-0">
           <div className="flex items-start">
-            <span className="text-9xl font-black tracking-tighter drop-shadow-lg leading-none">
+            <span className="text-7xl sm:text-8xl md:text-9xl font-black tracking-tighter drop-shadow-lg leading-none">
               {weatherData.temp || '--'}
             </span>
-            <span className="text-5xl font-black mt-4 ml-1">°</span>
+            <span className="text-3xl sm:text-4xl md:text-5xl font-black mt-2 sm:mt-3 md:mt-4 ml-1">°</span>
           </div>
           
           <div className="flex items-center gap-3 mt-2 text-sm font-bold opacity-80">
@@ -188,17 +195,16 @@ export function CurrentWeatherCard({ location }: CurrentWeatherCardProps) {
           </div>
         </div>
 
+        <div className="w-full mt-4">
+          <HourlyForecast data={data || []} />
           
-        <HourlyForecast location={location} />
-
-        <div className="flex flex-col items-center gap-1 mt-4">
-          <div className="px-5 py-2 bg-black/20 backdrop-blur-xl border border-white/10 rounded-full flex items-center gap-3">
-            <span className="text-xs tracking-wider">{dateText}</span>
-            <div className="w-1 h-1 bg-white/40 rounded-full" />
-            <span className="text-xs tracking-wider">{timeText}</span>
+          <div className="flex items-center justify-center gap-1.5 mt-3 opacity-60">
+            <span className="text-[10px] font-bold tracking-tight">{dateText}</span>
+            <span className="w-0.5 h-0.5 rounded-full bg-white/40" />
+            <span className="text-[9px] font-medium opacity-80">기상청 {inquiryTime} 발표 데이터</span>
           </div>
         </div>
       </CardContent>
     </Card>
   );
-}
+});

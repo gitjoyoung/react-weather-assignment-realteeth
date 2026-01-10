@@ -1,49 +1,61 @@
 import axios from 'axios';
 import { WEATHER_API_CONFIG } from './weatherConfig';
-import { getBaseDateTime, getVilageBaseDateTime, convertToGrid } from './weatherUtils';
 
 export const weatherClient = axios.create({
   baseURL: WEATHER_API_CONFIG.BASE_URL,
 });
 
-export const fetchWeather = async (lat: number, lon: number) => {
-  const { baseDate, baseTime } = getBaseDateTime();
-  const { baseDate: vilageBaseDate, baseTime: vilageBaseTime } = getVilageBaseDateTime();
-  const { nx, ny } = convertToGrid(lat, lon);
+/**
+ * 초단기실황 조회 (현재 날씨 - 관측 데이터)
+ */
+export async function fetchUltraSrtNcst(baseDate: string, baseTime: string, nx: number, ny: number) {
+  const response = await weatherClient.get('', {
+    params: {
+      serviceKey: WEATHER_API_CONFIG.SERVICE_KEY,
+      ...WEATHER_API_CONFIG.DEFAULT_PARAMS,
+      base_date: baseDate,
+      base_time: baseTime,
+      nx,
+      ny,
+    },
+  });
 
-  // Parallel requests for Current (UltraSrt) and Daily (Vilage) weather
-  const [currentResponse, dailyResponse] = await Promise.all([
-    weatherClient.get('', {
-      params: {
-        serviceKey: WEATHER_API_CONFIG.SERVICE_KEY,
-        ...WEATHER_API_CONFIG.DEFAULT_PARAMS,
-        base_date: baseDate,
-        base_time: baseTime,
-        nx,
-        ny,
-      },
-    }).catch(e => {
-      console.warn("Failed to fetch ultra srt weather", e);
-      return { data: { response: { body: { items: { item: [] } } } } };
-    }),
-    weatherClient.get(WEATHER_API_CONFIG.VILAGE_FCST_URL, {
-      params: {
-        serviceKey: WEATHER_API_CONFIG.SERVICE_KEY,
-        ...WEATHER_API_CONFIG.DEFAULT_PARAMS,
-        numOfRows: 1000, // Increase to ensure we cover today's data fully (previous day overlap can be large)
-        base_date: vilageBaseDate,
-        base_time: vilageBaseTime,
-        nx,
-        ny,
-      },
-    }).catch(e => {
-      console.warn("Failed to fetch daily weather", e);
-      return { data: { response: { body: { items: { item: [] } } } } };
-    })
-  ]);
+  return response.data.response?.body?.items?.item || [];
+}
 
-  const currentItems = currentResponse.data.response?.body?.items?.item || [];
-  const dailyItems = dailyResponse.data?.response?.body?.items?.item || [];
+/**
+ * 초단기예보 조회 (6시간 예보)
+ */
+export async function fetchUltraSrtFcst(baseDate: string, baseTime: string, nx: number, ny: number) {
+  const response = await weatherClient.get(WEATHER_API_CONFIG.ULTRA_SRT_FCST_URL, {
+    params: {
+      serviceKey: WEATHER_API_CONFIG.SERVICE_KEY,
+      ...WEATHER_API_CONFIG.DEFAULT_PARAMS,
+      base_date: baseDate,
+      base_time: baseTime,
+      nx,
+      ny,
+    },
+  });
 
-  return [...currentItems, ...dailyItems];
-};
+  return response.data.response?.body?.items?.item || [];
+}
+
+/**
+ * 단기예보 조회 (3일 예보)
+ */
+export async function fetchVilageFcst(baseDate: string, baseTime: string, nx: number, ny: number, numOfRows: number = 1000) {
+  const response = await weatherClient.get(WEATHER_API_CONFIG.VILAGE_FCST_URL, {
+    params: {
+      serviceKey: WEATHER_API_CONFIG.SERVICE_KEY,
+      ...WEATHER_API_CONFIG.DEFAULT_PARAMS,
+      numOfRows,
+      base_date: baseDate,
+      base_time: baseTime,
+      nx,
+      ny,
+    },
+  });
+
+  return response.data.response?.body?.items?.item || [];
+}

@@ -1,82 +1,46 @@
-import { useRef, useEffect } from 'react';
-import { extractHourlyForecast } from '@/features/current-weather/lib/weatherDataUtils';
-import { useWeather } from '@/entities/weather/model/useWeatherQuery';
+import { extractHourlyForecastFromTimeline } from '@/entities/weather/lib/weatherDataUtils';
 import { cn } from '@/shared/lib/utils';
-import type { LocationItem } from '@/entities/location/hooks/locationService';
+import type { HourlyWeatherData } from '@/entities/weather/model/weatherTypes';
 
 interface HourlyForecastProps {
-  location?: LocationItem;
+  data: HourlyWeatherData[];
 }
 
-export function HourlyForecast({ location }: HourlyForecastProps) {
-  const { data } = useWeather(location?.lat || 0, location?.lon || 0);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+export function HourlyForecast({ data }: HourlyForecastProps) {
+  const hourlyData = extractHourlyForecastFromTimeline(data);
 
-  // Calculate current date/time to identify "NOW"
-  const now = new Date();
-  const currentHour = now.getHours();
-  const todayStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-
-  const hourlyData = data ? extractHourlyForecast(data) : [];
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const container = scrollContainerRef.current;
-      if (container) {
-        const nowElement = container.querySelector<HTMLElement>('[data-is-now="true"]');
-        if (nowElement) {
-          const containerWidth = container.clientWidth;
-          const targetLeft = nowElement.offsetLeft;
-          const targetWidth = nowElement.clientWidth;
-          
-          const scrollPos = targetLeft - (containerWidth / 2) + (targetWidth / 2);
-          
-          container.scrollTo({
-            left: scrollPos,
-            behavior: 'smooth'
-          });
-        }
-      }
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [hourlyData]);
-
-  if (!data || hourlyData.length === 0) return null;
-
+  if (hourlyData.length === 0) return null;
 
   return (
-    <div className="w-full mt-4 px-1">
+    <div className="w-full mt-4 px-1 relative z-50 no-drag">
       <div
-        ref={scrollContainerRef}
-        className="flex overflow-x-auto pb-3 custom-scrollbar mask-gradient-r cursor-grab active:cursor-grabbing border-t border-white/10 pt-4 touch-pan-x"
-        onPointerDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
+        className="flex overflow-x-auto pb-3 custom-scrollbar mask-gradient-r border-t border-white/10 pt-4 pointer-events-auto touch-pan-x"
+        onPointerDownCapture={(e) => e.stopPropagation()}
+        onTouchStartCapture={(e) => e.stopPropagation()}
+        onMouseDownCapture={(e) => e.stopPropagation()}
+        onPointerMoveCapture={(e) => e.stopPropagation()}
       >
         {hourlyData.map((item) => {
-          const itemHour = parseInt(item.time.substring(0, 2));
-          const isToday = item.date === todayStr;
-          const isNow = isToday && itemHour === currentHour;
+          const isNow = item.isCurrent;
+          const isPast = item.isObservation && !isNow;
 
           return (
             <div
               key={`${item.date}-${item.time}`}
-              data-is-now={isNow}
               className={cn(
                 "flex flex-col items-center gap-1 min-w-[3.5rem] shrink-0 border-r border-white/5 last:border-none transition-opacity duration-500",
-                isNow ? "opacity-100 scale-110 font-bold text-yellow-300" : "opacity-60"
+                isNow ? "opacity-100 scale-110 font-bold text-yellow-300" : (isPast ? "opacity-30" : "opacity-60")
               )}
             >
                 <span className="text-[10px] font-medium uppercase tracking-wide">
-                  {isNow ? 'NOW' : item.time.substring(0, 2)}
+                  {isNow ? 'NOW' : (isPast ? 'PAST' : item.time.substring(0, 2))}
                 </span>
                 <span className="text-sm font-bold tracking-tight">{Math.round(Number(item.temp))}°</span>
             </div>
           );
         })}
       </div>
-      <div className="text-[10px] text-center text-white/30 mt-1">
-        Data Count: {hourlyData.length}
-      </div>
+     
     </div>
   );
 }

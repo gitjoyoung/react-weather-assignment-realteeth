@@ -1,47 +1,65 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import type { LocationItem } from "@/entities/location/hooks/locationService";
-import { useWeatherContext } from "@/pages/main/lib/WeatherContext";
+import { useSearchArea } from "../hooks/useSearchArea";
 import { getLocationFromCoords, fetchLocationsRemote } from "@/entities/location/hooks/kakaoLocationService";
 import { useLocationSearch } from "./useLocationSearch";
 
+/**
+ * 검색 컴포넌트의 로직을 관리하는 훅
+ * - 전역 상태: useSearchArea 훅 사용 (favoriteLocations, searchResult, setSearchResult)
+ * - 로컬 상태: query, selectedIndex, isDetecting, isSearchOpen
+ */
 export function useLocationSearchController() {
-    const { state: { favoriteLocations, isSearchOpen }, dispatch } = useWeatherContext();
+    // 전역 상태 (useSearchArea 훅 사용)
+    const { favoriteLocations, setSearchResult } = useSearchArea();
 
+    // 로컬 상태
     const [query, setQuery] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(-1);
     const [isDetecting, setIsDetecting] = useState(false);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
 
+    // 검색 결과 (디바운싱 적용)
     const { searchResults: localResults, isSearching, setIsSearching } = useLocationSearch(query);
 
     const hasQuery = query.length > 0;
 
+    // 표시할 목록 계산 (검색 결과 + 즐겨찾기)
     const displayLists = useMemo(() => {
         if (!hasQuery) {
+            // 검색어가 없으면 즐겨찾기만 표시
             return { search: [], favorites: favoriteLocations };
         }
 
+        // 검색어가 있으면 검색 결과와 필터링된 즐겨찾기 표시
         const filtered = favoriteLocations.filter(
             fav => !localResults.some(sr => sr.id === fav.id)
         );
         return { search: localResults, favorites: filtered };
     }, [favoriteLocations, localResults, hasQuery]);
 
+    // 전체 결과 목록 (키보드 네비게이션용)
     const currentResults = useMemo(() =>
         [...displayLists.search, ...displayLists.favorites]
         , [displayLists]);
 
-    const handleSelect = (item: LocationItem, source: 'search' | 'favorite' = 'search') => {
+    // 항목 선택 핸들러
+    const handleSelect = useCallback((item: LocationItem, source: 'search' | 'favorite' = 'search') => {
         const isFavorite = favoriteLocations.some(f => f.id === item.id);
+
         if (source === 'search' && !isFavorite) {
-            dispatch({ type: 'SET_SEARCHED_LOCATION', payload: item });
+            setSearchResult(item);
+        } else if (source === 'favorite') {
+            setSearchResult(item);
         }
 
-        dispatch({ type: 'SET_SEARCH_OPEN', payload: false });
+        setIsSearchOpen(false);
         setQuery('');
         setSelectedIndex(-1);
-    };
+    }, [favoriteLocations, setSearchResult]);
 
-    const handleDetect = async (e: React.MouseEvent) => {
+    // 현재 위치 감지 핸들러
+    const handleDetect = useCallback(async (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
 
@@ -74,28 +92,32 @@ export function useLocationSearchController() {
             },
             { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
         );
-    };
+    }, [handleSelect]);
 
-    const handleSearch = async () => {
+    // 검색 제출 핸들러 (Enter 또는 검색 버튼)
+    const handleSearch = useCallback(async () => {
         const trimmedQuery = query.trim();
         if (!trimmedQuery) return;
 
         setIsSearching(true);
         try {
+            // 카카오 API로 원격 검색 시도
             const isRemote = await fetchLocationsRemote(trimmedQuery).then(res => res[0]);
             const target = isRemote || currentResults[0];
             if (target) handleSelect(target, 'search');
         } catch {
+            // 실패 시 로컬 결과 중 첫 번째 선택
             if (currentResults.length > 0) handleSelect(currentResults[0]);
         } finally {
             setIsSearching(false);
         }
-    };
+    }, [query, currentResults, handleSelect, setIsSearching]);
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
+    // 키보드 이벤트 핸들러
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         switch (e.key) {
             case 'Escape':
-                dispatch({ type: 'SET_SEARCH_OPEN', payload: false });
+                setIsSearchOpen(false);
                 break;
             case 'ArrowDown':
                 e.preventDefault();
@@ -114,36 +136,42 @@ export function useLocationSearchController() {
                 }
                 break;
         }
-    };
+    }, [currentResults, selectedIndex, handleSelect, handleSearch]);
 
-    const handleFocus = () => {
+    // 포커스 핸들러
+    const handleFocus = useCallback(() => {
         if (!isSearchOpen) {
-            dispatch({ type: 'SET_SEARCH_OPEN', payload: true });
+            setIsSearchOpen(true);
         }
-    };
+    }, [isSearchOpen]);
 
-    const handleBlur = (e: React.FocusEvent) => {
+    // 블러 핸들러
+    const handleBlur = useCallback((e: React.FocusEvent) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-            dispatch({ type: 'SET_SEARCH_OPEN', payload: false });
+            setIsSearchOpen(false);
         }
-    };
+    }, []);
 
-    const handleQueryChange = (val: string) => {
+    // 검색어 변경 핸들러
+    const handleQueryChange = useCallback((val: string) => {
         setQuery(val);
         if (!isSearchOpen) {
-            dispatch({ type: 'SET_SEARCH_OPEN', payload: true });
+            setIsSearchOpen(true);
         }
         setSelectedIndex(-1);
-    };
+    }, [isSearchOpen]);
 
     return {
+        // 상태
         query,
         selectedIndex,
-        setSelectedIndex,
         isDetecting,
         isSearching,
         isSearchOpen,
         displayLists,
+
+        // 핸들러
+        setSelectedIndex,
         handleSelect,
         handleDetect,
         handleKeyDown,

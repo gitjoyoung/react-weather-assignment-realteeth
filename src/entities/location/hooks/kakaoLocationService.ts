@@ -1,4 +1,5 @@
-import { searchAddress, coordToRegion, type KakaoAddressDocument } from '@/entities/location/api/kakaoApi';
+import { searchAddress, coordToRegion } from '@/entities/location/api/kakaoApi';
+import type { KakaoAddressDocument } from '@/entities/location/model/kakaoTypes';
 import type { LocationItem } from './locationService';
 
 /**

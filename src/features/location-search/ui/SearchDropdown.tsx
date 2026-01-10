@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, memo } from "react";
 import { Search, Star, Loader2 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import type { LocationItem } from "@/entities/location/hooks/locationService";
@@ -12,7 +12,7 @@ interface SearchDropdownProps {
   onHover: (index: number) => void;
 }
 
-export function SearchDropdown({
+export const SearchDropdown = memo(function SearchDropdown({
   isLoading,
   searchResults,
   favorites,
@@ -127,4 +127,4 @@ export function SearchDropdown({
       </div>
     </div>
   );
-}
+});
